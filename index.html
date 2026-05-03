@@ -1,1 +1,683 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>livey · ultimate streaming engine</title>
+  <!-- Font Awesome 6 (Free Icons) -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+  <!-- hls.js for HLS streaming -->
+  <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+  <!-- dash.js for MPEG-DASH streaming -->
+  <script src="https://cdn.dashjs.org/latest/dash.all.min.js"></script>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+      font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, sans-serif;
+    }
 
+    body {
+      background: radial-gradient(circle at 20% 30%, #0a0f1e, #03060c);
+      min-height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      padding: 1.5rem;
+    }
+
+    /* Main glassmorphic container */
+    .app-container {
+      max-width: 1400px;
+      width: 100%;
+      background: rgba(12, 20, 30, 0.65);
+      backdrop-filter: blur(12px);
+      border-radius: 2.5rem;
+      box-shadow: 0 25px 45px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.08);
+      overflow: hidden;
+      transition: all 0.2s ease;
+    }
+
+    /* Header area */
+    .stream-header {
+      padding: 1.5rem 2rem;
+      background: rgba(0, 0, 0, 0.4);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+      display: flex;
+      flex-wrap: wrap;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 1rem;
+    }
+    .title-section h1 {
+      font-size: 1.8rem;
+      font-weight: 700;
+      background: linear-gradient(135deg, #FFFFFF, #8ab3ff);
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+      letter-spacing: -0.3px;
+    }
+    .title-section h1 i {
+      background: none;
+      -webkit-background-clip: unset;
+      background-clip: unset;
+      color: #3b82f6;
+    }
+    .title-section p {
+      font-size: 0.8rem;
+      color: #9aa8c0;
+      margin-top: 4px;
+    }
+    .badge {
+      background: #1e2a3e;
+      padding: 0.4rem 1rem;
+      border-radius: 60px;
+      font-size: 0.75rem;
+      color: #a0c0ff;
+      font-weight: 500;
+    }
+
+    /* Control panel */
+    .control-panel {
+      padding: 1.5rem 2rem;
+      background: rgba(0, 0, 0, 0.3);
+      border-bottom: 1px solid rgba(255,255,255,0.05);
+    }
+    .url-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      margin-bottom: 1rem;
+      align-items: center;
+    }
+    .url-input-wrapper {
+      flex: 4;
+      min-width: 220px;
+      display: flex;
+      background: #0f1722;
+      border-radius: 60px;
+      border: 1px solid #2a3a50;
+      transition: all 0.2s;
+    }
+    .url-input-wrapper:focus-within {
+      border-color: #3b82f6;
+      box-shadow: 0 0 0 2px rgba(59,130,246,0.3);
+    }
+    .url-input-wrapper i {
+      padding: 0 16px;
+      color: #6c86a3;
+      font-size: 1.1rem;
+      line-height: 48px;
+    }
+    #streamUrl {
+      flex: 1;
+      background: transparent;
+      border: none;
+      padding: 0 12px 0 0;
+      color: #eef4ff;
+      font-size: 0.95rem;
+      outline: none;
+      height: 48px;
+    }
+    #streamUrl::placeholder {
+      color: #4b5a72;
+    }
+    .type-select {
+      background: #0f1722;
+      border: 1px solid #2a3a50;
+      border-radius: 40px;
+      padding: 0 16px;
+      height: 48px;
+      color: white;
+      font-weight: 500;
+      cursor: pointer;
+      outline: none;
+    }
+    .load-btn, .preset-btn {
+      background: linear-gradient(95deg, #2563eb, #1e40af);
+      border: none;
+      border-radius: 40px;
+      padding: 0 28px;
+      height: 48px;
+      font-weight: 600;
+      color: white;
+      font-size: 0.9rem;
+      cursor: pointer;
+      transition: transform 0.1s, background 0.2s;
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+    }
+    .load-btn:hover, .preset-btn:hover {
+      background: linear-gradient(95deg, #3b82f6, #2563eb);
+      transform: scale(0.97);
+    }
+    .preset-group {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      margin-top: 12px;
+      align-items: center;
+    }
+    .preset-btn {
+      background: #1e293b;
+      box-shadow: none;
+      padding: 0 18px;
+      height: 42px;
+      font-size: 0.8rem;
+    }
+    .quality-row {
+      margin-top: 1rem;
+      display: flex;
+      align-items: center;
+      gap: 20px;
+      flex-wrap: wrap;
+    }
+    .quality-selector {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      background: #0a0f1a80;
+      padding: 0.4rem 1rem;
+      border-radius: 60px;
+    }
+    .quality-selector label {
+      color: #a0b9e0;
+      font-size: 0.8rem;
+      font-weight: 500;
+    }
+    #qualitySelect {
+      background: #0f1722;
+      border: 1px solid #334155;
+      border-radius: 40px;
+      padding: 6px 12px;
+      color: white;
+      font-size: 0.8rem;
+      cursor: pointer;
+    }
+    .action-buttons {
+      display: flex;
+      gap: 12px;
+      margin-left: auto;
+    }
+    .icon-btn {
+      background: #1e2a3a;
+      border: none;
+      width: 38px;
+      height: 38px;
+      border-radius: 40px;
+      color: #cbd5e6;
+      cursor: pointer;
+      transition: all 0.2s;
+      font-size: 1rem;
+    }
+    .icon-btn:hover {
+      background: #2d3a50;
+      color: white;
+      transform: scale(1.02);
+    }
+
+    /* player zone */
+    .player-wrapper {
+      padding: 0 2rem 1rem 2rem;
+    }
+    .video-container {
+      position: relative;
+      border-radius: 1.8rem;
+      overflow: hidden;
+      background: #000000;
+      box-shadow: 0 20px 35px -12px black;
+    }
+    video {
+      width: 100%;
+      display: block;
+      aspect-ratio: 16 / 9;
+      background: #000;
+      outline: none;
+    }
+    .status-bar {
+      margin-top: 12px;
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.75rem;
+      color: #8da3c7;
+      padding: 0 8px;
+    }
+    #statusMsg {
+      background: #10161faa;
+      padding: 4px 14px;
+      border-radius: 30px;
+      backdrop-filter: blur(4px);
+    }
+    .subtitle-area {
+      margin-top: 12px;
+      display: flex;
+      gap: 12px;
+      align-items: center;
+      flex-wrap: wrap;
+      padding: 0 8px;
+    }
+    .sub-btn {
+      background: #1e2a3a;
+      border: none;
+      padding: 6px 14px;
+      border-radius: 30px;
+      color: #cbd5e6;
+      font-size: 0.7rem;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .sub-btn:hover {
+      background: #3b4a62;
+      color: white;
+    }
+    footer {
+      padding: 1rem 2rem;
+      text-align: center;
+      font-size: 0.7rem;
+      color: #5d6f8f;
+      border-top: 1px solid rgba(255,255,255,0.05);
+    }
+    @media (max-width: 760px) {
+      .control-panel, .stream-header { padding: 1rem; }
+      .url-row { flex-direction: column; align-items: stretch; }
+      .load-btn { justify-content: center; }
+    }
+  </style>
+</head>
+<body>
+
+<div class="app-container">
+  <div class="stream-header">
+    <div class="title-section">
+      <h1><i class="fas fa-bolt" style="color:#3b82f6; margin-right: 8px;"></i>livey<span style="font-size:1.2rem; background: none; -webkit-background-clip: unset; color:#a0c0ff;"> stream</span></h1>
+      <p>Ultra-low latency · HLS + DASH + MP4 · Full adaptive power</p>
+    </div>
+    <div class="badge">
+      <i class="fas fa-infinity"></i> 4K · LIVE · PIP
+    </div>
+  </div>
+
+  <div class="control-panel">
+    <div class="url-row">
+      <div class="url-input-wrapper">
+        <i class="fas fa-link"></i>
+        <input type="text" id="streamUrl" placeholder="Stream URL (.m3u8, .mpd, .mp4, or live link)" value="https://bitdash-a.akamaihd.net/content/sintel/hls/playlist.m3u8">
+      </div>
+      <select id="streamTypeSelect" class="type-select">
+        <option value="auto">🔍 Auto Detect</option>
+        <option value="hls">📡 HLS (.m3u8)</option>
+        <option value="dash">🎬 MPEG-DASH (.mpd)</option>
+        <option value="mp4">📀 MP4 / Other</option>
+      </select>
+      <button id="loadStreamBtn" class="load-btn"><i class="fas fa-play-circle"></i> LOAD STREAM</button>
+    </div>
+    
+    <div class="preset-group">
+      <span style="color:#9db4d6; font-size:0.8rem;"><i class="fas fa-star-of-life"></i> quick presets:</span>
+      <button class="preset-btn" data-url="https://bitdash-a.akamaihd.net/content/sintel/hls/playlist.m3u8" data-type="hls">🎬 Sintel (HLS 4K)</button>
+      <button class="preset-btn" data-url="https://bitdash-a.akamaihd.net/content/sintel/sintel.mpd" data-type="dash">🌊 Sintel (DASH)</button>
+      <button class="preset-btn" data-url="https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4" data-type="mp4">🔥 Bigger Blazes (MP4)</button>
+      <button class="preset-btn" data-url="https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8" data-type="hls">🌍 Multi-res HLS</button>
+      <button class="preset-btn" data-url="https://cph-p2p-msl.akamaized.net/hls/live/2000341/test/master.m3u8" data-type="hls">📺 Live Test (Akamai)</button>
+    </div>
+
+    <div class="quality-row" id="qualityRow" style="display: none;">
+      <div class="quality-selector">
+        <i class="fas fa-signal" style="color:#5a9eff;"></i>
+        <label>ADAPTIVE QUALITY:</label>
+        <select id="qualitySelect" disabled>
+          <option value="auto">Auto (Adaptive Bitrate)</option>
+        </select>
+      </div>
+      <div class="action-buttons">
+        <button id="fullscreenBtn" class="icon-btn" title="Fullscreen"><i class="fas fa-expand"></i></button>
+        <button id="pipBtn" class="icon-btn" title="Picture-in-Picture"><i class="fas fa-video"></i></button>
+        <button id="screenshotBtn" class="icon-btn" title="Screenshot"><i class="fas fa-camera"></i></button>
+      </div>
+    </div>
+  </div>
+
+  <div class="player-wrapper">
+    <div class="video-container">
+      <video id="streamVideo" controls playsinline autoplay crossorigin="anonymous" poster="https://cdn.pixabay.com/photo/2019/12/02/06/00/stream-4666337_960_720.jpg">
+        Your browser does not support video playback.
+      </video>
+    </div>
+    <div class="status-bar">
+      <span><i class="fas fa-circle" style="color:#10b981; font-size: 0.7rem;"></i> livey engine ready</span>
+      <span id="statusMsg"><i class="fas fa-info-circle"></i> Ready — load a stream</span>
+    </div>
+    <div class="subtitle-area">
+      <input type="file" id="subtitleUpload" accept=".vtt,.srt" style="display:none;">
+      <button id="uploadSubBtn" class="sub-btn"><i class="fas fa-closed-captioning"></i> Add subtitles (.vtt/.srt)</button>
+      <button id="removeSubBtn" class="sub-btn"><i class="fas fa-ban"></i> Remove subs</button>
+      <span style="font-size:0.7rem; color:#6c86a3;"><i class="fas fa-info-circle"></i> External WebVTT/SRT support</span>
+    </div>
+  </div>
+  <footer>
+    <i class="fas fa-bolt"></i> livey · universal streaming client · HLS.js + dash.js · smooth ABR & fullscreen
+  </footer>
+</div>
+
+<script>
+  (function() {
+    // DOM elements
+    const video = document.getElementById('streamVideo');
+    const urlInput = document.getElementById('streamUrl');
+    const typeSelect = document.getElementById('streamTypeSelect');
+    const loadBtn = document.getElementById('loadStreamBtn');
+    const qualitySelect = document.getElementById('qualitySelect');
+    const qualityRow = document.getElementById('qualityRow');
+    const statusSpan = document.getElementById('statusMsg');
+    const fullscreenBtn = document.getElementById('fullscreenBtn');
+    const pipBtn = document.getElementById('pipBtn');
+    const screenshotBtn = document.getElementById('screenshotBtn');
+    const uploadSubBtn = document.getElementById('uploadSubBtn');
+    const removeSubBtn = document.getElementById('removeSubBtn');
+    const subtitleUpload = document.getElementById('subtitleUpload');
+    
+    // Player instances
+    let hls = null;
+    let dashPlayer = null;
+    let currentPlayerType = null; // 'hls', 'dash', 'native'
+    let currentTrackElement = null; // track element reference
+
+    function setStatus(msg, isError = false) {
+      statusSpan.innerHTML = isError ? `<i class="fas fa-exclamation-triangle" style="color:#f97316;"></i> ${msg}` : `<i class="fas fa-play-circle"></i> ${msg}`;
+      if (isError) console.error(msg);
+      else console.log(msg);
+    }
+
+    // destroy all media engines
+    function destroyPlayers() {
+      if (hls) {
+        hls.destroy();
+        hls = null;
+      }
+      if (dashPlayer) {
+        dashPlayer.reset();
+        dashPlayer = null;
+      }
+      video.pause();
+      video.removeAttribute('src');
+      video.load();
+      currentPlayerType = null;
+      qualitySelect.innerHTML = '<option value="auto">Auto (Adaptive Bitrate)</option>';
+      qualitySelect.disabled = true;
+      qualityRow.style.display = 'none';
+      // reset quality onchange handler
+      qualitySelect.onchange = null;
+    }
+
+    // Native MP4 / direct src
+    function loadNative(url) {
+      destroyPlayers();
+      currentPlayerType = 'native';
+      video.src = url;
+      video.load();
+      video.play().catch(e => setStatus(`Playback blocked: ${e.message}`, false));
+      setStatus(`📀 Native mode: ${url.substring(url.lastIndexOf('/')+1)}`);
+      qualityRow.style.display = 'none';
+    }
+
+    // HLS (hls.js)
+    function loadHLS(url) {
+      destroyPlayers();
+      if (!Hls.isSupported()) {
+        setStatus("⚠️ HLS.js not supported, fallback to native (may fail)", true);
+        if (video.canPlayType('application/vnd.apple.mpegurl')) {
+          video.src = url;
+          video.load();
+          currentPlayerType = 'native';
+        } else {
+          setStatus("HLS not supported in this browser", true);
+        }
+        return;
+      }
+      hls = new Hls({
+        enableWorker: true,
+        lowLatencyMode: true,
+        maxBufferLength: 30,
+        abrEwmaDefaultEstimate: 5000000,
+      });
+      hls.loadSource(url);
+      hls.attachMedia(video);
+      currentPlayerType = 'hls';
+      
+      hls.on(Hls.Events.MANIFEST_PARSED, (event, data) => {
+        setStatus(`✅ HLS ready · ${data.levels.length} quality levels`);
+        qualitySelect.innerHTML = '<option value="auto">Auto (Adaptive Bitrate)</option>';
+        if (data.levels && data.levels.length > 1) {
+          data.levels.forEach((level, idx) => {
+            let label = level.height ? `${level.height}p` : `stream ${idx+1}`;
+            if (level.bitrate) label += ` · ${(level.bitrate/1000).toFixed(0)} kbps`;
+            qualitySelect.add(new Option(label, idx));
+          });
+          qualitySelect.disabled = false;
+          qualityRow.style.display = 'flex';
+          qualitySelect.onchange = () => {
+            if (hls) {
+              if (qualitySelect.value === 'auto') hls.currentLevel = -1;
+              else hls.currentLevel = parseInt(qualitySelect.value);
+            }
+          };
+        } else {
+          qualitySelect.disabled = true;
+          qualityRow.style.display = 'flex';
+          qualitySelect.innerHTML = '<option>Single quality (auto)</option>';
+        }
+        video.play().catch(e => setStatus(`Autoplay blocked: ${e.message}`, false));
+      });
+      
+      hls.on(Hls.Events.ERROR, (event, data) => {
+        if (data.fatal) {
+          setStatus(`HLS fatal: ${data.type} - ${data.details}`, true);
+          switch(data.type) {
+            case Hls.ErrorTypes.NETWORK_ERROR:
+              hls.startLoad();
+              break;
+            default:
+              destroyPlayers();
+              break;
+          }
+        } else {
+          setStatus(`HLS warning: ${data.details}`, false);
+        }
+      });
+    }
+
+    // DASH (dash.js)
+    function loadDASH(url) {
+      destroyPlayers();
+      if (!dashjs || !dashjs.MediaPlayer) {
+        setStatus("Dash.js library not available", true);
+        return;
+      }
+      dashPlayer = dashjs.MediaPlayer().create();
+      dashPlayer.initialize(video, url, true);
+      currentPlayerType = 'dash';
+      dashPlayer.on('error', (e) => {
+        setStatus(`DASH error: ${JSON.stringify(e)}`, true);
+      });
+      dashPlayer.on('streamInitialized', () => {
+        setStatus(`✅ DASH stream ready · adaptive ABR active`);
+        const bitrateList = dashPlayer.getBitrateInfoListFor('video');
+        if (bitrateList && bitrateList.length > 1) {
+          qualitySelect.innerHTML = '<option value="auto">Auto (ABR)</option>';
+          bitrateList.forEach((item, idx) => {
+            let heightLabel = item.height ? `${item.height}p` : `bitrate ${(item.bitrate/1000).toFixed(0)}kbps`;
+            qualitySelect.add(new Option(heightLabel, idx));
+          });
+          qualitySelect.disabled = false;
+          qualityRow.style.display = 'flex';
+          qualitySelect.onchange = () => {
+            if (dashPlayer) {
+              if (qualitySelect.value === 'auto') dashPlayer.setQualityFor('video', -1);
+              else dashPlayer.setQualityFor('video', parseInt(qualitySelect.value), true);
+            }
+          };
+        } else {
+          qualityRow.style.display = 'flex';
+          qualitySelect.disabled = true;
+          qualitySelect.innerHTML = '<option>Auto quality (DASH)</option>';
+        }
+      });
+      dashPlayer.on('playbackStarted', () => setStatus("DASH playback running"));
+      video.play().catch(e => console.warn);
+    }
+
+    // Main stream loader
+    function loadStreamFromUrl(rawUrl, forcedType = null) {
+      let url = rawUrl.trim();
+      if (!url) {
+        setStatus("❌ Please provide a valid URL", true);
+        return;
+      }
+      setStatus(`🔄 loading: ${url.length > 60 ? url.substring(0,60)+'…' : url}`);
+      let type = forcedType || typeSelect.value;
+      
+      if (type === 'auto') {
+        const lower = url.toLowerCase();
+        if (lower.includes('.m3u8') || lower.includes('m3u8')) type = 'hls';
+        else if (lower.includes('.mpd') || lower.includes('manifest.mpd')) type = 'dash';
+        else type = 'mp4';
+      }
+      
+      // remove any leftover subtitle track element from previous stream
+      if (currentTrackElement) {
+        currentTrackElement.remove();
+        currentTrackElement = null;
+      }
+      
+      if (type === 'hls') loadHLS(url);
+      else if (type === 'dash') loadDASH(url);
+      else loadNative(url);
+    }
+
+    // Event bindings
+    loadBtn.addEventListener('click', () => {
+      loadStreamFromUrl(urlInput.value);
+    });
+    
+    // Preset buttons
+    document.querySelectorAll('.preset-btn').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        const presetUrl = btn.getAttribute('data-url');
+        const presetType = btn.getAttribute('data-type');
+        if (presetUrl) {
+          urlInput.value = presetUrl;
+          if (presetType) typeSelect.value = presetType;
+          loadStreamFromUrl(presetUrl, presetType);
+        }
+      });
+    });
+    
+    // Fullscreen
+    fullscreenBtn.addEventListener('click', () => {
+      if (!document.fullscreenElement) {
+        document.documentElement.requestFullscreen().catch(err => setStatus(`Fullscreen error: ${err}`, false));
+      } else {
+        document.exitFullscreen();
+      }
+    });
+    
+    // Picture-in-Picture
+    pipBtn.addEventListener('click', async () => {
+      if (document.pictureInPictureElement) {
+        await document.exitPictureInPicture();
+        setStatus("Exited Picture-in-Picture");
+      } else if (video) {
+        try {
+          await video.requestPictureInPicture();
+          setStatus("Picture-in-Picture active");
+        } catch (err) {
+          setStatus(`PIP not supported: ${err.message}`, false);
+        }
+      }
+    });
+    
+    // Screenshot
+    screenshotBtn.addEventListener('click', () => {
+      if (!video.videoWidth || !video.videoHeight) {
+        setStatus("No video frame to capture", true);
+        return;
+      }
+      const canvas = document.createElement('canvas');
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      const link = document.createElement('a');
+      link.download = `livey-screenshot-${Date.now()}.png`;
+      link.href = canvas.toDataURL('image/png');
+      link.click();
+      setStatus("📸 Screenshot saved");
+    });
+    
+    // Subtitle management (external .vtt / .srt)
+    function removeExistingTrack() {
+      if (currentTrackElement) {
+        currentTrackElement.remove();
+        currentTrackElement = null;
+      }
+      // also clean any text track that might be orphaned (just in case)
+      for (let i = 0; i < video.textTracks.length; i++) {
+        if (video.textTracks[i].kind === 'subtitles' && video.textTracks[i].label !== 'native') {
+          // Cannot remove directly, but we can disable. Better remove track element.
+        }
+      }
+      setStatus("Subtitles removed");
+    }
+    
+    uploadSubBtn.addEventListener('click', () => subtitleUpload.click());
+    
+    subtitleUpload.addEventListener('change', (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      if (!file.name.match(/\.(vtt|srt)$/i)) {
+        setStatus("Only .vtt or .srt subtitle files are supported", true);
+        return;
+      }
+      removeExistingTrack();
+      const fileURL = URL.createObjectURL(file);
+      const track = document.createElement('track');
+      track.kind = 'subtitles';
+      track.label = file.name;
+      track.srclang = 'en';
+      track.src = fileURL;
+      video.appendChild(track);
+      currentTrackElement = track;
+      // Ensure it becomes active
+      track.addEventListener('load', () => {
+        if (video.textTracks.length) {
+          for (let i = 0; i < video.textTracks.length; i++) {
+            if (video.textTracks[i].kind === 'subtitles') {
+              video.textTracks[i].mode = 'showing';
+              break;
+            }
+          }
+        }
+        setStatus(`Subtitles loaded: ${file.name}`);
+      });
+      track.addEventListener('error', () => setStatus("Failed to load subtitle file", true));
+      setStatus(`Adding subtitles: ${file.name}`);
+    });
+    
+    removeSubBtn.addEventListener('click', () => {
+      removeExistingTrack();
+    });
+    
+    // Initial auto-load of example stream (shows capability)
+    setTimeout(() => {
+      if (urlInput.value.trim()) {
+        loadStreamFromUrl(urlInput.value);
+      }
+    }, 200);
+  })();
+</script>
+</body>
+</html>
